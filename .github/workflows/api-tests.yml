@@ -1,36 +1,71 @@
 name: API tests
 
+# ──────────────── Déclencheurs ────────────────
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
 
+# ────────────────── JOBS ──────────────────
 jobs:
-  newman:
+  # ---------- 1) DEV ----------
+  tests_dev:                 
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4           # clone le dépôt
+    - uses: actions/checkout@v4
 
-    - uses: actions/setup-node@v4         # installe Node 18
+    - uses: actions/setup-node@v4
       with:
         node-version: 18
 
-    - name: Install Newman & reporter
+    - name: Install Newman + reporter
       run: npm install -g newman newman-reporter-htmlextra
 
-    - name: Run Postman tests
+    - name: Run collection (DEV)
       run: |
         mkdir -p newman
-        newman run API-demo-tests.postman_collection.json \
-               -e API-demo-tests.postman_environment.json \
-               -d data.csv \
-               -r cli,htmlextra \
-               --reporter-htmlextra-export newman/report.html
+        newman run collections/API-demo-tests.postman_collection.json \
+          -e environments/API-demo-tests.postman_environment.json \
+          -d data/posts.csv \
+          -r cli,htmlextra \
+          --reporter-htmlextra-export newman/report-dev.html
 
-    - name: Upload HTML report
+    - name: Upload report DEV
       uses: actions/upload-artifact@v4
       with:
-        name: newman-report
-        path: newman/report.html
+        name: newman-report-dev
+        path: newman/report-dev.html
+
+  # ---------- 2) STAGING ----------
+  tests_staging:
+    runs-on: ubuntu-latest
+    needs: tests_dev         
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 18
+
+    - name: Install Newman + reporter
+      run: npm install -g newman newman-reporter-htmlextra
+
+    - name: Run collection (STAGING)
+      env:
+        STAGING_AUTH_TOKEN: ${{ secrets.STAGING_AUTH_TOKEN }}
+      run: |
+        mkdir -p newman
+        newman run collections/API-demo-tests.postman_collection.json \
+          -e environments/API-demo-staging.postman_environment.json \
+          -d data/posts.csv \
+          --env-var "AUTH_TOKEN=$STAGING_AUTH_TOKEN" \
+          -r cli,htmlextra \
+          --reporter-htmlextra-export newman/report-staging.html
+
+    - name: Upload report STAGING
+      uses: actions/upload-artifact@v4
+      with:
+        name: newman-report-staging
+        path: newman/report-staging.html
